@@ -1,0 +1,150 @@
+<?xml version="1.0" ?>
+<!--
+  Degenerate construction-corridor world (Gazebo Harmonic / gz-sim8).
+
+  - 20 m straight corridor, inner wall faces at y = +/- 1.5 m (3 m wide),
+    2.5 m tall, flat and featureless -> structural axial (X) degeneracy.
+  - A LARGE shifting wall panel at x = 10 m: a 0.2 x 1.0 x 2.0 m vertical slab
+    mounted on a prismatic (Y) joint to the world, driven by a
+    JointPositionController. A ROS node (panel_mover, added in step B2)
+    commands it from y=+0.85 to y=-0.65 (a 1.5 m sideways shift) at t=15 s.
+
+  World-level system plugins are required so sensors render and IMU works.
+  On a no-GPU machine, launch with the ogre (OGRE1) render engine; see the
+  render_engine argument in bringup.launch.py.
+-->
+<sdf version="1.9">
+  <world name="construction_site">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Core systems -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <!-- Sensors system renders LiDAR/cameras. force_headless_rendering lets it
+         run without a display (WSL2/headless). -->
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.3 0.2 -1</direction>
+    </light>
+
+    <!-- Ground -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <material>
+            <ambient>0.6 0.6 0.6 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Corridor: two long walls + two end caps, all static.
+         Inner faces at y = +/- 1.5 (wall thickness 0.2, centered at +/- 1.6). -->
+    <!-- Corridor: two long parallel walls PLUS end caps (closed corridor).
+         With the LiDAR range limited (see URDF), the robot sees an end cap only
+         near the corridor ends, where it constrains X; in the middle it sees
+         only the parallel side walls, so X is unobservable there. Axial
+         uncertainty therefore SPIKES in the middle and recovers near the ends,
+         which is the "uncertainty spikes -> warning" behaviour Task 3 describes. -->
+    <model name="corridor">
+      <static>true</static>
+
+      <link name="left_wall">
+        <pose>10 1.6 1.25 0 0 0</pose>
+        <collision name="c"><geometry><box><size>20 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>20 0.2 2.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.78 1</ambient><diffuse>0.85 0.85 0.82 1</diffuse></material>
+        </visual>
+      </link>
+
+      <link name="right_wall">
+        <pose>10 -1.6 1.25 0 0 0</pose>
+        <collision name="c"><geometry><box><size>20 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>20 0.2 2.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.78 1</ambient><diffuse>0.85 0.85 0.82 1</diffuse></material>
+        </visual>
+      </link>
+
+      <link name="end_near">
+        <pose>-0.1 0 1.25 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.2 3.4 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 3.4 2.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.78 1</ambient><diffuse>0.85 0.85 0.82 1</diffuse></material>
+        </visual>
+      </link>
+
+      <link name="end_far">
+        <pose>20.1 0 1.25 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.2 3.4 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 3.4 2.5</size></box></geometry>
+          <material><ambient>0.8 0.8 0.78 1</ambient><diffuse>0.85 0.85 0.82 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Shifting wall panel: large vertical slab on a world-anchored prismatic
+         Y joint. Starts at y = 0.85; commanded to y = -0.65 at t=15 s. -->
+    <model name="shifting_panel">
+      <pose>10 0.85 1.0 0 0 0</pose>
+      <link name="panel">
+        <inertial>
+          <mass>20.0</mass>
+          <inertia><ixx>7.0</ixx><iyy>6.8</iyy><izz>1.8</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c"><geometry><box><size>0.2 1.0 2.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 1.0 2.0</size></box></geometry>
+          <material><ambient>0.75 0.35 0.25 1</ambient><diffuse>0.85 0.4 0.3 1</diffuse></material>
+        </visual>
+      </link>
+
+      <joint name="slide" type="prismatic">
+        <parent>world</parent>
+        <child>panel</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-2.0</lower><upper>2.0</upper></limit>
+          <dynamics><damping>50.0</damping></dynamics>
+        </axis>
+      </joint>
+
+      <!-- Position controller: ROS publishes a target on /panel/cmd_pos.
+           Target 0 holds start pose; target -1.5 slides it across. -->
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>slide</joint_name>
+        <topic>/panel/cmd_pos</topic>
+        <p_gain>2000.0</p_gain>
+        <i_gain>50.0</i_gain>
+        <d_gain>300.0</d_gain>
+        <cmd_max>100000</cmd_max>
+        <cmd_min>-100000</cmd_min>
+      </plugin>
+    </model>
+
+  </world>
+</sdf>
