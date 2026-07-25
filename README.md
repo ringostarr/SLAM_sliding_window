@@ -1,4 +1,4 @@
-# The Shifting Wall & Slipping Base Challenge
+# The Shifting Wall & Slipping Base
 
 A SLAM stress-test for a **degenerate corridor**: a differential-drive robot with
 a 16-channel 3D LiDAR and a 6-axis IMU must localize and map a long, featureless
